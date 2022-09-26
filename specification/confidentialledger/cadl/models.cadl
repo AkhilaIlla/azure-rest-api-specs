@@ -4,7 +4,7 @@ import "@azure-tools/cadl-azure-core";
 using Cadl.Rest;
 using Azure.Core;
 
-namespace ConfidentialLedgerClient;
+namespace Azure.ConfidentialLedger;
 
 enum ConfidentialLedgerQueryStateKnownValues {
   "Loading",

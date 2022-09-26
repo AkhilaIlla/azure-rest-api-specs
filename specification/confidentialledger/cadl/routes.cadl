@@ -5,7 +5,7 @@ import "./models.cadl";
 using Cadl.Rest;
 using Cadl.Http;
 
-namespace ConfidentialLedgerClient;
+namespace Azure.ConfidentialLedger;
 
 @summary("Gets the constitution used for governance.")
 @doc("""
@@ -109,6 +109,7 @@ op GetCurrentLedgerEntry is Azure.Core.ResourceRead<
   }
 >;
 
+#suppress "@azure-tools/cadl-azure-core/use-standard-operations" "This is an existing service, we have a non-conforming operation."
 @summary("Deletes a user from the Confidential Ledger.")
 @doc("Deletes a user from the Confidential Ledger.")
 @route("/app/users/{userId}")

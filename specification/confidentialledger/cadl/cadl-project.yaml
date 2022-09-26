@@ -1,14 +1,13 @@
 emitters:
   # "@azure-tools/cadl-autorest": true
-  # Uncomment this line and add "@azure-tools/cadl-python" to your package.json to generate Python code
-  # "@azure-tools/cadl-python":
-  #   "basic-setup-py": true
-  #   "package-version":
-  #   "package-name":
-  #   "output-path":
+  "@azure-tools/cadl-python":
+    "basic-setup-py": true
+    "package-version": "1.0.0b1"
+    "package-name": "azure.confidentalledger"
+    "output-path": "E:/repos/azure-rest-api-specs/specification/confidentialledger/cadl/azure-confidentialledger"
   # Uncomment this line and add "@azure-tools/cadl-java" to your package.json to generate Java code
   # "@azure-tools/cadl-java": true
   # Uncomment this line and add "@azure-tools/cadl-csharp" to your package.json to generate C# code
   # "@azure-tools/cadl-csharp": true
-  # Uncomment this line and add "@azure-tools/cadl-typescript" to your package.json to generate Typescript code
+  # Uncomment this line and add "@azure-tBools/cadl-typescript" to your package.json to generate Typescript code
   # "@azure-tools/cadl-typescript": true

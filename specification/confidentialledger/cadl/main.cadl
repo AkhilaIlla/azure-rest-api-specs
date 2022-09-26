@@ -20,4 +20,4 @@ https://contoso.confidentialledger.azure.com
 The ConfidentialLedgerClient writes and retrieves ledger entries against the
 Confidential Ledger service.
 """)
-namespace ConfidentialLedgerClient;
+namespace Azure.ConfidentialLedger;
