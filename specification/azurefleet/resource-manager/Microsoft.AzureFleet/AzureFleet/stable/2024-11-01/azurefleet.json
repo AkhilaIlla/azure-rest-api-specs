@@ -535,10 +535,6 @@
         "hibernationEnabled": {
           "type": "boolean",
           "description": "The flag that enables or disables hibernation capability on the VM."
-        },
-        "test": {
-          "type": "boolean",
-          "description": "The flag that enables or disables hibernation capability on the VM."
         }
       }
     },
