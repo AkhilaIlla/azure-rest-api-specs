@@ -107,8 +107,8 @@ export async function getLabelActionImpl({ owner, repo, issue_number, head_sha, 
     labelNames.includes(ArmAutoSignoffLabel.ArmAutoSignedOffTrivialTest);
 
   // Track if ARMSignedOff was auto-added (IncrementalTSP present) vs manually added
-  const hasAutoAddedArmSignedOff = 
-    // need to consider the legacy label 
+  const hasAutoAddedArmSignedOff =
+    // need to consider the legacy label
     labelNames.includes(ArmAutoSignoffLabel.ArmAutoSignedOff) ||
     labelNames.includes(ArmAutoSignoffLabel.ArmAutoSignedOffIncrementalTSP);
   core.info(`Labels: ${inspect(labelNames)}`);

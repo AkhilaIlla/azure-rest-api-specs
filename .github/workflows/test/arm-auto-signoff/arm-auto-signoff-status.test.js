@@ -645,10 +645,7 @@ describe("getLabelActionImpl", () => {
 
     // PR previously had trivial test label, now qualifies via incremental typespec
     github.rest.issues.listLabelsOnIssue.mockResolvedValue({
-      data: [
-        { name: managedLabels.autoSignedOffTrivialTest },
-        { name: "ARMReview" },
-      ],
+      data: [{ name: managedLabels.autoSignedOffTrivialTest }, { name: "ARMReview" }],
     });
 
     github.rest.repos.listCommitStatusesForRef.mockResolvedValue({
@@ -745,10 +742,7 @@ describe("getLabelActionImpl", () => {
 
     // PR only has trivial test label (no ARMSignedOff, no IncrementalTSP)
     github.rest.issues.listLabelsOnIssue.mockResolvedValue({
-      data: [
-        { name: managedLabels.autoSignedOffTrivialTest },
-        { name: "ARMReview" },
-      ],
+      data: [{ name: managedLabels.autoSignedOffTrivialTest }, { name: "ARMReview" }],
     });
 
     const result = await getLabelActionImpl({
