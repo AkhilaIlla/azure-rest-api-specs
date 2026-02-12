@@ -3,7 +3,7 @@
   "info": {
     "title": "Microsoft.DependencyMap management service",
     "version": "2025-05-01-preview",
-    "description": "Microsoft.DependencyMap management service",
+    "description": "test",
     "x-typespec-generated": [
       {
         "emitter": "@azure-tools/typespec-autorest"
