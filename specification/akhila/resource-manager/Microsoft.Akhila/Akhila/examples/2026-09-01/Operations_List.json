@@ -1,0 +1,26 @@
+{
+  "title": "List provider operations",
+  "operationId": "Operations_List",
+  "parameters": {
+    "api-version": "2026-09-01"
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "value": [
+          {
+            "name": "Microsoft.Akhila/akhilaResources/read",
+            "isDataAction": false,
+            "display": {
+              "provider": "Microsoft Akhila",
+              "resource": "Akhila resources",
+              "operation": "Get an Akhila resource",
+              "description": "Gets an Akhila resource."
+            },
+            "origin": "user,system"
+          }
+        ]
+      }
+    }
+  }
+}

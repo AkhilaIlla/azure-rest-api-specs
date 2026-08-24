@@ -1,0 +1,52 @@
+{
+  "title": "Create or update an Akhila resource",
+  "operationId": "AkhilaResources_CreateOrUpdate",
+  "parameters": {
+    "api-version": "2026-09-01",
+    "subscriptionId": "00000000-0000-0000-0000-000000000000",
+    "resourceGroupName": "example-rg",
+    "akhilaResourceName": "example-resource",
+    "resource": {
+      "location": "eastus",
+      "tags": {
+        "environment": "test"
+      },
+      "properties": {
+        "displayName": "Example resource",
+        "description": "An example Akhila resource."
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.Akhila/akhilaResources/example-resource",
+        "name": "example-resource",
+        "type": "Microsoft.Akhila/akhilaResources",
+        "location": "eastus",
+        "tags": {
+          "environment": "test"
+        },
+        "properties": {
+          "displayName": "Example resource",
+          "description": "An example Akhila resource."
+        }
+      }
+    },
+    "201": {
+      "headers": {
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Akhila/locations/eastus/operationStatuses/example-operation"
+      },
+      "body": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.Akhila/akhilaResources/example-resource",
+        "name": "example-resource",
+        "type": "Microsoft.Akhila/akhilaResources",
+        "location": "eastus",
+        "properties": {
+          "displayName": "Example resource",
+          "description": "An example Akhila resource."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "title": "Update an Akhila resource",
+  "operationId": "AkhilaResources_Update",
+  "parameters": {
+    "api-version": "2026-09-01",
+    "subscriptionId": "00000000-0000-0000-0000-000000000000",
+    "resourceGroupName": "example-rg",
+    "akhilaResourceName": "example-resource",
+    "properties": {
+      "tags": {
+        "environment": "production"
+      },
+      "properties": {
+        "displayName": "Updated example resource",
+        "description": "An updated Akhila resource."
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.Akhila/akhilaResources/example-resource",
+        "name": "example-resource",
+        "type": "Microsoft.Akhila/akhilaResources",
+        "location": "eastus",
+        "tags": {
+          "environment": "production"
+        },
+        "properties": {
+          "displayName": "Updated example resource",
+          "description": "An updated Akhila resource."
+        }
+      }
+    }
+  }
+}

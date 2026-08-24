@@ -1,0 +1,19 @@
+{
+  "title": "Delete an Akhila resource",
+  "operationId": "AkhilaResources_Delete",
+  "parameters": {
+    "api-version": "2026-09-01",
+    "subscriptionId": "00000000-0000-0000-0000-000000000000",
+    "resourceGroupName": "example-rg",
+    "akhilaResourceName": "example-resource"
+  },
+  "responses": {
+    "202": {
+      "headers": {
+        "Location": "https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Akhila/locations/eastus/operationStatuses/example-operation",
+        "Retry-After": 10
+      }
+    },
+    "204": {}
+  }
+}

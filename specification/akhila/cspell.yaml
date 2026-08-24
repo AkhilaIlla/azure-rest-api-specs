@@ -1,0 +1,7 @@
+# This file configures spell checking for the Akhila service.
+version: "0.2"
+import:
+  - ../cspell.yaml
+words:
+  - akhila
+  - armakhila
