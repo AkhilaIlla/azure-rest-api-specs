@@ -15,9 +15,8 @@ namespace Microsoft.NetApp;
 /**
  * Cache resource
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 @parentResource(CapacityPool)
 model Cache is Azure.ResourceManager.TrackedResource<CacheProperties, false> {
   ...ResourceNameParameter<
@@ -34,17 +33,15 @@ model Cache is Azure.ResourceManager.TrackedResource<CacheProperties, false> {
 /**
  * List of Cache resources
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 model CacheList is Azure.Core.Page<Cache>;
 
 /**
  * Cache resource properties
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 model CacheProperties {
   /**
    * The file path of the Cache.
@@ -53,7 +50,7 @@ model CacheProperties {
   @minLength(1)
   @pattern("^[a-zA-Z][a-zA-Z0-9\\-]{0,79}$")
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  filepath: string;
+  filePath: string;
 
   /**
    * Maximum storage quota allowed for a file system in bytes. Valid values are in the range 50GiB to 1PiB. Values expressed in bytes as multiples of 1GiB.
@@ -199,14 +196,20 @@ model CacheProperties {
    * Flag indicating whether writeback is enabled for the cache.
    */
   writeBack?: EnableWriteBackState;
+
+  /**
+   * Flag indicating whether file access logs are enabled for the Cache, based on active diagnostic settings present on the Cache.
+   */
+  @added(Versions.v2026_04_01)
+  @visibility(Lifecycle.Read)
+  fileAccessLogs?: CacheFileAccessLogs;
 }
 
 /**
  * SMB settings for the cache
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 model SmbSettings {
   /**
    * Enables encryption for in-flight smb3 data. Only applicable for SMB/DualProtocol cache.
@@ -227,12 +230,11 @@ model SmbSettings {
 /**
  * Stores the origin cluster information associated to a cache.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 model OriginClusterInformation {
   /**
-   * ONTAP cluster name of external cluster hosting the origin volume
+   * ONTAP cluster name of external cluster hosting the origin volume. Must match the exact cluster name.
    */
   peerClusterName: string;
 
@@ -256,9 +258,8 @@ model OriginClusterInformation {
 /**
  * The response containing peering passphrases and commands for cluster and vserver peering.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 model PeeringPassphrases {
   /**
    * The cluster peering command.
@@ -279,6 +280,7 @@ model PeeringPassphrases {
    * Warnings that are critical for the cluster peering and vserver peering processes.
    */
   @added(Versions.v2025_12_15_preview)
+  @added(Versions.v2026_01_01)
   @visibility(Lifecycle.Read)
   criticalWarning?: string;
 }
@@ -286,9 +288,8 @@ model PeeringPassphrases {
 /**
  * Contains all the information needed to mount a cache
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 model CacheMountTargetProperties {
   /**
    * UUID v4 used to identify the MountTarget
@@ -315,9 +316,8 @@ model CacheMountTargetProperties {
 /**
  * Flag indicating whether writeback is enabled for the cache.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union EnableWriteBackState {
   string,
 
@@ -335,9 +335,8 @@ union EnableWriteBackState {
 /**
  * Specifies whether LDAP is enabled or not.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union LdapState {
   string,
 
@@ -366,9 +365,8 @@ model CachePropertiesExportPolicy {
 /**
  * Flag indicating whether the global file lock is enabled for the cache.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union GlobalFileLockingState {
   string,
 
@@ -386,9 +384,8 @@ union GlobalFileLockingState {
 /**
  * Flag indicating whether a CIFS change notification is enabled for the cache.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union CifsChangeNotifyState {
   string,
 
@@ -406,9 +403,8 @@ union CifsChangeNotifyState {
 /**
  * Specifies if the cache is encryption or not.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union EncryptionState {
   string,
 
@@ -426,9 +422,8 @@ union EncryptionState {
 /**
  * Describe if a cache is Kerberos enabled.
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union KerberosState {
   string,
 
@@ -446,9 +441,8 @@ union KerberosState {
 /**
  * Azure NetApp Files Cache lifecycle management
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union CacheLifeCycleState {
   string,
 
@@ -481,9 +475,8 @@ union CacheLifeCycleState {
 /**
  * Enables encryption for in-flight smb3 data. Only applicable for SMB/DualProtocol cache
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union SmbEncryptionState {
   string,
 
@@ -501,9 +494,8 @@ union SmbEncryptionState {
 /**
  * Set of supported protocol types, which include NFSv3, NFSv4 and SMB protocol
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union ProtocolTypes {
   string,
 
@@ -526,9 +518,8 @@ union ProtocolTypes {
 /**
  * Azure lifecycle management
  */
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 union CacheProvisioningState {
   string,
 
@@ -563,10 +554,27 @@ union CacheProvisioningState {
   Canceled: "Canceled",
 }
 
+/**
+ * Flag indicating whether file access logs are enabled for the Cache, based on active diagnostic settings present on the Cache.
+ */
+@added(Versions.v2026_04_01)
+union CacheFileAccessLogs {
+  string,
+
+  /**
+   * fileAccessLogs are enabled
+   */
+  Enabled: "Enabled",
+
+  /**
+   * fileAccessLogs are not enabled
+   */
+  Disabled: "Disabled",
+}
+
 @armResourceOperations
-@added(Versions.v2025_09_01_preview)
-@removed(Versions.v2025_12_01)
 @added(Versions.v2025_12_15_preview)
+@added(Versions.v2026_01_01)
 interface Caches {
   /**
    * Get the details of the specified Cache
@@ -581,7 +589,6 @@ interface Caches {
   /**
    * Patch the specified Cache
    */
-  @patch(#{ implicitOptionality: true })
   update is ArmCustomPatchAsync<
     Cache,
     Azure.ResourceManager.Foundations.ResourceUpdateModel<
@@ -600,10 +607,19 @@ interface Caches {
   /**
    * List all Caches within the Capacity Pool
    */
+  @removed(Versions.v2026_01_01)
+  @sharedRoute
   listByCapacityPools is ArmResourceListByParent<
     Cache,
     Response = ArmResponse<CacheList>
   >;
+
+  /**
+   * List all Caches within the Capacity Pool
+   */
+  @added(Versions.v2026_01_01)
+  @sharedRoute
+  list is ArmResourceListByParent<Cache, Response = ArmResponse<CacheList>>;
 
   /**
    * This operation will list the cluster peering command, cluster peering passphrase and the vserver peering command
@@ -621,7 +637,7 @@ interface Caches {
     Cache,
     PoolChangeRequest,
     Cache,
-    LroHeaders = ArmLroLocationHeader<FinalResult = void> &
+    LroHeaders = ArmLroLocationHeader<FinalResult = Cache> &
       Azure.Core.Foundations.RetryAfterHeader
   >;
 
@@ -629,16 +645,18 @@ interface Caches {
    * Resets the SMB password for the cache
    */
   @added(Versions.v2025_12_15_preview)
+  @added(Versions.v2026_01_01)
   resetSmbPassword is ArmResourceActionAsync<
     Resource = Cache,
     Request = void,
     Response = Cache,
-    LroHeaders = ArmLroLocationHeader<FinalResult = void> &
+    LroHeaders = ArmLroLocationHeader<FinalResult = Cache> &
       Azure.Core.Foundations.RetryAfterHeader
   >;
 }
 
-@@doc(Caches.poolChange::parameters.body,
+@@doc(
+  Caches.poolChange::parameters.body,
   "Move cache to the pool supplied in the body of the operation."
 );
 

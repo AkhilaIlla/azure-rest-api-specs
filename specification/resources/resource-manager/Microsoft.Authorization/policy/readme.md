@@ -26,7 +26,64 @@ These are the global settings for the Resource API.
 title: PolicyClient
 description: Policy Client
 openapi-type: arm
-tag: package-policy-2025-11-stable
+tag: package-policy-2026-07-stable
+```
+
+### Tag: package-policy-2025-12-preview
+
+These settings apply only when `--tag=package-policy-2025-12-preview` is specified on the command line.
+
+```yaml $(tag) == 'package-policy-2025-12-preview'
+input-file:
+- preview/2025-12-01-preview/openapi.json
+
+# Needed when there is more than one input file
+override-info:
+  title: PolicyClient
+```
+
+### Tag: package-policy-2026-01-preview
+
+These settings apply only when `--tag=package-policy-2026-01-preview` is specified on the command line.
+
+```yaml $(tag) == 'package-policy-2026-01-preview'
+input-file:
+- preview/2026-01-01-preview/openapi.json
+suppressions:
+  - code: GuidUsage
+    from: openapi.json
+    reason: "policyAssignmentInstanceId is a server-generated, read-only GUID in the established service contract"
+    where: $.definitions["Azure.Core.uuid"].format
+
+# Needed when there is more than one input file
+override-info:
+  title: PolicyClient
+```
+
+### Tag: package-policy-2026-07-stable
+
+These settings apply only when `--tag=package-policy-2026-07-stable` is specified on the command line.
+
+```yaml $(tag) == 'package-policy-2026-07-stable'
+input-file:
+  - stable/2026-07-01/openapi.json
+
+# Needed when there is more than one input file
+override-info:
+  title: PolicyClient
+```
+
+### Tag: package-policy-2026-06-stable
+
+These settings apply only when `--tag=package-policy-2026-06-stable` is specified on the command line.
+
+```yaml $(tag) == 'package-policy-2026-06-stable'
+input-file:
+  - stable/2026-06-01/openapi.json
+
+# Needed when there is more than one input file
+override-info:
+  title: PolicyClient
 ```
 
 ### Tag: package-policy-2025-11-stable
@@ -803,6 +860,9 @@ directive:
   - suppress: TenantLevelAPIsNotAllowed
     from: policyVariableValues.json
     reason: Linter rule limitation. The API has always supported management group scope.
+  - suppress: TenantLevelAPIsNotAllowed
+    from: preview/2025-12-01-preview/openapi.json
+    reason: Linter rule limitation. The API has always supported management group scope.
   - suppress: EvenSegmentedPathForPutOperation
     from: policyAssignments.json
     reason: Linter rule limitation. The API has never been changed since inception. Would be a breaking change.
@@ -884,6 +944,9 @@ directive:
   - suppress: ResourceNameRestriction
     from: policyVariableValues.json
     reason: Using common types for management group name
+  - suppress: ResourceNameRestriction
+    from: preview/2025-12-01-preview/openapi.json
+    reason: Using common types for management group name
   - suppress: ParametersInPointGet
     from: policyAssignments.json
     reason: "This is for specific properties that require extra processing to produce so only want to return on demand."
@@ -895,7 +958,7 @@ directive:
     reason: "This is for specific properties that require extra processing to produce so only want to return on demand."
   - suppress: TrackedExtensionResourcesAreNotAllowed
     from: policyAssignments.json
-    reason: "Policy assignments can have a manged identity associated with them. This requires a location."
+    reason: "Policy assignments can have a managed identity associated with them. This requires a location."
 ```
 
 ---

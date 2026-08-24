@@ -3,16 +3,16 @@ import { getChangedFilesStatuses, swagger } from "@azure-tools/specs-shared/chan
 import { defaultLogger } from "@azure-tools/specs-shared/logger";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { logError, LogLevel, logMessage, setOutput } from "./log.js";
+import { logError, LogLevel, logMessage, logMessageAsync, setOutput } from "./log.ts";
 import {
   BreakingChangeReviewRequiredLabel,
-  BreakingChangesCheckType,
-  Context,
+  type BreakingChangesCheckType,
+  type Context,
   VersioningReviewRequiredLabel,
-} from "./types/breaking-change.js";
-import { ResultMessageRecord } from "./types/message.js";
-import { createOadMessageProcessor } from "./utils/oad-message-processor.js";
-import { createPullRequestProperties } from "./utils/pull-request.js";
+} from "./types/breaking-change.ts";
+import { type ResultMessageRecord } from "./types/message.ts";
+import { createOadMessageProcessor } from "./utils/oad-message-processor.ts";
+import { createPullRequestProperties } from "./utils/pull-request.ts";
 
 /**
  * Interface for parsed CLI arguments
@@ -245,13 +245,14 @@ export function changeBaseBranch(context: Context): void {
 /**
  * Log the full list of OAD messages to console
  */
-export function logFullOadMessagesList(msgs: ResultMessageRecord[]): void {
+export async function logFullOadMessagesList(msgs: ResultMessageRecord[]): Promise<void> {
   logMessage("---- Full list of messages ----", LogLevel.Group);
   logMessage("[");
   // Printing the messages one by one because the console.log appears to elide the messages with "... X more items"
   // after approximately 292 messages.
   for (const msg of msgs) {
-    logMessage(JSON.stringify(msg, null, 4) + ",");
+    // Use async, backpressure-aware log method to ensure all messages written despite stdout backpressure
+    await logMessageAsync(JSON.stringify(msg, null, 4) + ",");
   }
   logMessage("]");
   logMessage("---- End of full list of messages ----", LogLevel.EndGroup);

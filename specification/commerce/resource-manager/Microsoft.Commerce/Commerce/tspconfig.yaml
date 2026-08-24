@@ -7,11 +7,13 @@ options:
   "@azure-tools/typespec-autorest":
     omit-unreachable-types: false
     emitter-output-dir: "{project-root}"
-    azure-resource-provider-folder: "resource-manager"
     output-file: "{version-status}/{version}/commerce.json"
     arm-types-dir: "{project-root}/../../../../common-types/resource-management"
     emit-lro-options: "all"
     examples-dir: "{project-root}/examples"
+  "@azure-typespec/http-client-csharp-mgmt":
+    namespace: "Azure.ResourceManager.Commerce"
+    emitter-output-dir: "{output-dir}/{service-dir}/{namespace}"
   "@azure-tools/typespec-python":
     emitter-output-dir: "{output-dir}/{service-dir}/azure-mgmt-commerce"
     namespace: "azure.mgmt.commerce"
@@ -26,6 +28,7 @@ options:
   "@azure-tools/typespec-ts":
     emitter-output-dir: "{output-dir}/{service-dir}/arm-commerce"
     flavor: "azure"
+    compatibility-lro: true
     experimental-extensible-enums: true
     package-details:
       name: "@azure/arm-commerce"
@@ -42,3 +45,4 @@ options:
 linter:
   extends:
     - "@azure-tools/typespec-azure-rulesets/resource-manager"
+    - "@azure-tools/typespec-azure-rulesets/client-sdk"
