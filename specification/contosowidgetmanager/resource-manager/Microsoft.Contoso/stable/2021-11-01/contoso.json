@@ -473,7 +473,7 @@
         "displayName": {
           "type": "string",
           "description": "The display name of the employee.",
-          "pattern": "^[^<>*%&:\\?.+/]*[^<>*%&:\\?.+/ ]+$",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _-]{0,126}[A-Za-z0-9_-])?$",
           "maxLength": 128
         },
         "connectionString": {
