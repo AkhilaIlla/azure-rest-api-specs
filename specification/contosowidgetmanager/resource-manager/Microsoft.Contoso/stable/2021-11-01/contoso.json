@@ -240,7 +240,7 @@
             "description": "Resource create parameters.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/Employee"
+              "$ref": "#/definitions/EmployeeCreateOrUpdate"
             }
           }
         ],
@@ -436,6 +436,21 @@
         }
       ]
     },
+    "EmployeeCreateOrUpdate": {
+      "type": "object",
+      "description": "Employee resource create or update parameters.",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/EmployeeRequestProperties",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
+        }
+      ]
+    },
     "EmployeeListResult": {
       "type": "object",
       "description": "The response of a Employee list operation.",
@@ -476,15 +491,6 @@
           "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _-]{0,126}[A-Za-z0-9_-])?$",
           "maxLength": 128
         },
-        "connectionString": {
-          "type": "string",
-          "description": "The connection string used to access the employee profile store. This write-only secret is omitted from GET, PUT, PATCH, and list responses.",
-          "x-ms-secret": true,
-          "x-ms-mutability": [
-            "create",
-            "update"
-          ]
-        },
         "profile": {
           "type": "string",
           "format": "base64url",
@@ -497,12 +503,32 @@
         }
       }
     },
+    "EmployeeRequestProperties": {
+      "type": "object",
+      "description": "Employee properties accepted for create or update.",
+      "properties": {
+        "connectionString": {
+          "type": "string",
+          "description": "The connection string used to access the employee profile store.",
+          "x-ms-secret": true,
+          "x-ms-mutability": [
+            "create",
+            "update"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/EmployeeProperties"
+        }
+      ]
+    },
     "EmployeeUpdate": {
       "type": "object",
       "description": "Employee resource",
       "properties": {
         "properties": {
-          "$ref": "#/definitions/EmployeeProperties",
+          "$ref": "#/definitions/EmployeeRequestProperties",
           "description": "The resource-specific properties for this resource."
         }
       },
