@@ -478,7 +478,7 @@
         },
         "connectionString": {
           "type": "string",
-          "description": "The connection string used to access the employee profile store.",
+          "description": "The connection string used to access the employee profile store. This write-only secret is omitted from GET, PUT, PATCH, and list responses.",
           "x-ms-secret": true,
           "x-ms-mutability": [
             "create",
