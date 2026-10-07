@@ -476,6 +476,12 @@
           "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _-]{0,126}[A-Za-z0-9_-])?$",
           "maxLength": 128
         },
+        "alias": {
+          "type": "string",
+          "description": "The alias of the employee.",
+          "pattern": "^[^<>]{1,64}$",
+          "maxLength": 64
+        },
         "connectionString": {
           "type": "string",
           "description": "The connection string used to access the employee profile store. The service returns null for this property in GET, PUT, PATCH, and list responses.",
