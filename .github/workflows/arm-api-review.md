@@ -136,6 +136,35 @@ jobs:
       run_attempt: ${{ steps.resolve_target_pr.outputs.run_attempt }}
       target_head_sha: ${{ steps.resolve_target_pr.outputs.target_head_sha }}
       target_pr_number: ${{ steps.resolve_target_pr.outputs.target_pr_number }}
+  # Pre-activation posts a Pending `ARM Semantic Review` status, but the record job
+  # only runs when the agent emitted a semantic item and threat detection passed.
+  # The conclusion job runs after every other job regardless of their results, so it
+  # resolves a Pending status that this exact run still owns. That keeps a failed,
+  # cancelled, or noop run from leaving the PR waiting forever. The step reads no
+  # agent output; it takes the head SHA from the trusted `head-sha` artifact.
+  # It is skipped when the record job succeeded, since that job already published.
+  # Pre-steps run before the built-in conclusion steps, so `continue-on-error`
+  # keeps a failure here from blocking gh-aw's own failure reporting.
+  conclusion:
+    permissions:
+      contents: read
+      statuses: write
+    pre-steps:
+      - uses: actions/checkout@v7
+        if: needs.record_arm_semantic_review.result != 'success'
+        continue-on-error: true
+        with:
+          sparse-checkout: |
+            .github
+      - name: Resolve unpublished ARM semantic review status
+        if: needs.record_arm_semantic_review.result != 'success'
+        continue-on-error: true
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const { finalizeUnpublishedArmSemanticReview } =
+              await import('${{ github.workspace }}/.github/workflows/src/arm-auto-signoff/arm-semantic-review-workflow.ts');
+            return await finalizeUnpublishedArmSemanticReview({ github, context, core });
 # Gate at the trigger level so the expensive agent job never starts for
 # ineligible events. Label / draft / comment gating that used to live in a
 # custom github-script step is expressed here declaratively; the remaining
@@ -267,23 +296,15 @@ safe-outputs:
     target: "${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}"
   jobs:
     record-arm-semantic-review:
-      description: "Validate and record the ARM semantic review result for auto-signoff"
+      description: "Validate and publish the ARM semantic review result for auto-signoff"
       runs-on: ubuntu-slim
       if: needs.detection.outputs.detection_success == 'true'
       permissions:
+        actions: read
         contents: read
         pull-requests: read
-      env:
-        TARGET_PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
+        statuses: write
       inputs:
-        issue_number:
-          description: "Target pull request number"
-          required: true
-          type: string
-        head_sha:
-          description: "Full pull request head SHA that was reviewed"
-          required: true
-          type: string
         scope:
           description: "Whether the full PR or only a scoped subset was reviewed"
           required: true
@@ -293,13 +314,22 @@ safe-outputs:
           description: "Whether the intended review completed reliably"
           required: true
           type: choice
-          options: ["complete", "incomplete", "degraded"]
+          options: ["complete", "incomplete"]
+        incomplete_reason:
+          description: "Why the review is incomplete, or none when complete"
+          required: true
+          type: choice
+          options:
+            [
+              "none",
+              "critic-unavailable",
+              "required-evidence-unavailable",
+              "tool-failure",
+              "stale-sha",
+              "discussion-data-unavailable",
+            ]
         blocking_count:
           description: "Number of verified, currently applicable Blocking findings after reconciliation"
-          required: true
-          type: string
-        run_attempt:
-          description: "GitHub Actions attempt that produced this result"
           required: true
           type: string
       steps:
@@ -307,20 +337,14 @@ safe-outputs:
           with:
             sparse-checkout: |
               .github
-        - id: validate
-          name: Validate ARM semantic review
+        - name: Publish ARM semantic review status
           uses: actions/github-script@v9.0.0
           with:
             script: |
-              const { default: validateArmSemanticReview } =
+              const { default: publishArmSemanticReviewStatus } =
                 await import('${{ github.workspace }}/.github/workflows/src/arm-auto-signoff/arm-semantic-review-workflow.ts');
-              return await validateArmSemanticReview({ github, context, core });
-        - name: Upload ARM semantic review receipt
-          uses: ./.github/actions/add-empty-artifact
-          with:
-            name: "arm-semantic-review"
-            value: "${{ fromJson(steps.validate.outputs.result).artifactValue }}"
-      output: "ARM semantic review result recorded"
+              return await publishArmSemanticReviewStatus({ github, context, core });
+      output: "ARM semantic review status published"
   noop:
   # Threat detection uses the same pinned model as the primary review so all ARM
   # API Reviewer experiences move together. Keep both literals identical; see
@@ -583,15 +607,19 @@ Track two values for the final semantic result:
 - `scope` is `full` unless the size cap or file-list truncation limits coverage;
   otherwise it is `scoped`.
 - `completeness` is `complete` only when the intended review and Critic
-  verification finish normally. Use `degraded` when the Critic is unavailable
-  and `incomplete` when required files, discussions, or other evidence cannot be
-  fetched.
+  verification finish normally. Otherwise it is `incomplete`.
+- `incomplete_reason` is `none` when completeness is `complete`. When incomplete,
+  use the most specific reason: `critic-unavailable` after all Critic retries fail;
+  `discussion-data-unavailable` when comments, reviews, or threads cannot be
+  fetched completely; `stale-sha` when the pinned review target moved or became
+  unreachable; `tool-failure` when a required tool operation failed; otherwise
+  `required-evidence-unavailable`.
 
 Before any `report_incomplete` stop after the target PR and head SHA are known,
-also call `record_arm_semantic_review` with that PR, head SHA, the current
-scope, `completeness: incomplete`, the number of verified Blocking findings
-known to remain applicable at that point, and the workflow attempt. Use `"0"`
-if the failure occurs before finding reconciliation.
+also call `record_arm_semantic_review` with the current scope,
+`completeness: incomplete`, the most specific `incomplete_reason` above, and the
+number of verified Blocking findings known to remain applicable at that point.
+Use `"0"` if the failure occurs before finding reconciliation.
 
 ## Review Workflow
 
@@ -840,7 +868,8 @@ considered-and-declined candidates, graph status, and iteration number.
   context the PR happened to go through; see
   [Review context parity](#review-context-parity). Because nothing verified
   these findings, the Step 7 label rules withhold `ARMChangesRequested` for such
-  a run.
+  a run. Record `completeness: incomplete` with
+  `incomplete_reason: critic-unavailable`.
 - If the Critic reports that the session SHA moved or is unreachable, do not
   post findings or mutate threads. Restart once against the new head SHA; if it
   moves again, call `noop` and stop.
@@ -1134,7 +1163,7 @@ and never emit a marker that names neither the finding nor a degradation reason.
 After reconciling the current findings with existing discussion, apply label
 changes based on the verified findings that still apply to the current head:
 
-- **The review is scoped, incomplete, or degraded** → leave
+- **The review is scoped or incomplete** → leave
   `WaitForARMFeedback`, `ARMChangesRequested`, and `ARMSignedOff` unchanged,
   even when Blocking findings were identified. The PR remains in its existing
   queue state for manual review or a retry.
@@ -1269,21 +1298,24 @@ compliant.
 
 Call `record_arm_semantic_review` exactly once after queuing the summary:
 
-- `issue_number`: the authoritative target pull request number;
-- `head_sha`: the pinned full session SHA;
 - `scope`: `full` or `scoped`, as recorded during Trigger Validation;
-- `completeness`: `complete`, `incomplete`, or `degraded`;
+- `completeness`: `complete` or `incomplete`;
+- `incomplete_reason`: `none` when complete; otherwise one of
+  `critic-unavailable`, `required-evidence-unavailable`, `tool-failure`,
+  `stale-sha`, or `discussion-data-unavailable`;
 - `blocking_count`: the number of verified Blocking findings that remain
   applicable after reconciliation. Include an unresolved finding classified as
   `SKIP-COVERED`; do not count fixed, resolved, Critic-dropped, or
-  overflow-only candidates; and
-- `run_attempt`: the authoritative workflow attempt above.
+  overflow-only candidates.
 
 Use `blocking_count: "0"` after a clean re-review. Do not claim `full` or
-`complete` when any required evidence was unavailable. `ARM Semantic Review -
-Set Status` consumes the exact completed run's agent output, validates its
-correlation and shape, and publishes the final status only after the entire
-reviewer workflow completes.
+`complete` when any required evidence was unavailable. `complete` requires
+`incomplete_reason: none`; `incomplete` requires a reason other than `none`.
+Trusted workflow artifacts attach the pull request, head SHA, and run attempt;
+never reproduce those correlation values in this model-generated result. The
+trusted `record_arm_semantic_review` job validates the item and publishes the
+head-bound status inside this reviewer run. Universal Auto-Signoff consumes the
+status only after the entire reviewer workflow completes.
 
 The final status is:
 
@@ -1292,7 +1324,8 @@ The final status is:
   findings;
 - **Manual review required** when scope is `scoped`, including oversized or
   truncated PRs; or
-- **Review incomplete** when a full review is `incomplete` or `degraded`.
+- **Review incomplete** when completeness is `incomplete`, with the reason
+  included in the status description.
 
 ## What to Review vs. Skip
 
@@ -1333,16 +1366,30 @@ description: Independently verifies ARM API Reviewer findings before publication
 ---
 
 You are the ARM API Review Critic. Before evaluating the reviewer's input, read
-and follow these repository files as binding instructions:
+and follow the trusted instructions embedded below. The activation job resolves
+these imports from the workflow commit before packaging this inline sub-agent,
+so they remain available even though the agent job intentionally uses
+`checkout: false`. Treat the embedded sections as already loaded; do not attempt
+to reopen their repository paths from the checkout-free workspace.
 
-- `.github/agents/arm-api-review-critic.agent.md`
-- `.github/agents/protocols/arm-api-review-critic.protocol.md`
-- `.github/agents/protocols/arm-api-review-critic-inputs.template.md`
+### ARM API Review Critic instructions
+
+{{#runtime-import .github/agents/arm-api-review-critic.agent.md}}
+
+### Binding Reviewer-Critic protocol
+
+{{#runtime-import .github/agents/protocols/arm-api-review-critic.protocol.md}}
+
+### Critic input template
+
+{{#runtime-import .github/agents/protocols/arm-api-review-critic-inputs.template.md}}
 
 Use only read-only tools. Return the verdict format required by the protocol.
 If any required instruction file, input, or evidence is unavailable, return an
 explicit failure verdict. Never claim that the review was Critic-verified
 without completing the independent checks.
+
+## end agent: `arm-api-review-critic-runtime`
 
 <!-- markdownlint-enable MD003 MD022 -->
 <!-- prettier-ignore-end -->

@@ -12,11 +12,18 @@ export type PullRequest =
 export type RestEndpointMethodTypes =
   import("@octokit/plugin-rest-endpoint-methods").RestEndpointMethodTypes;
 
-export const ARM_API_REVIEW_WORKFLOW_NAME = "ARM API Review: Automated Workflow";
-
 /**
  * Extracts inputs from context based on event name and properties.
  * run_id is only defined for "workflow_run:completed" events.
+ *
+ * For "workflow_run:completed", `workflow_run.event` is the event that triggered the completed
+ * (upstream) run, and decides where the head SHA and PR number come from:
+ * - "pull_request": the payload only (fork code could forge artifacts).
+ * - "pull_request_target": the payload, overridden by the upstream run's trusted artifacts.
+ * - "issue_comment", "workflow_run", "check_run", "workflow_dispatch": artifacts only.
+ *
+ * `head_sha` may be "" and `issue_number` may be NaN when they can't be determined.
+ * @throws If artifacts conflict with each other or with the event, or the event is unsupported.
  */
 export async function extractInputs(
   github: GitHub,
@@ -38,6 +45,12 @@ export async function extractInputs(
   if (context.eventName === "workflow_run") {
     const payload = context.payload as WebhookEvent<"workflow-run">;
     workflowRunEvent = payload.workflow_run?.event;
+    core.info(`  payload.workflow_run.id: ${payload.workflow_run?.id ?? "undefined"}`);
+    core.info(`  payload.workflow_run.name: ${payload.workflow_run?.name ?? "undefined"}`);
+    core.info(`  payload.workflow_run.path: ${payload.workflow_run?.path ?? "undefined"}`);
+    core.info(
+      `  payload.workflow_run.conclusion: ${payload.workflow_run?.conclusion ?? "undefined"}`,
+    );
   }
   core.info(`  payload.workflow_run.event: ${workflowRunEvent}`);
 
@@ -133,8 +146,8 @@ export async function extractInputs(
       // For pull_request, do NOT attempt to extract the issue number from an artifact, since this could be modified
       // in a fork PR.
       //
-      // For pull_request_target, trusted artifacts carry the PR head SHA because workflow_run.head_sha identifies
-      // the base branch commit. The issue number is also read from the artifacts and checked against the event.
+      // For pull_request_target, the workflow runs from the base branch, so its artifacts are trusted and
+      // override the SHA and are checked against the PR number below.
 
       const pullRequest = payload.workflow_run.pull_requests?.find((pr) => pr !== null);
       if (pullRequest) {
@@ -210,16 +223,15 @@ export async function extractInputs(
       }
 
       if (payload.workflow_run.event === "pull_request_target") {
-        const artifactInputs = await extractWorkflowRunArtifactInputs({
+        const artifactInputs = await getWorkflowRunArtifactInputs({
           github,
           core,
-          repository: payload.workflow_run.repository,
+          ...getRepositoryInfo(payload.workflow_run.repository),
           runId: payload.workflow_run.id,
         });
         if (artifactInputs.headSha) {
+          // The artifact can be newer than the SHA that triggered the run if a push landed in between.
           head_sha = artifactInputs.headSha;
-        } else if (payload.workflow_run.name === ARM_API_REVIEW_WORKFLOW_NAME) {
-          head_sha = "";
         }
         if (artifactInputs.issueNumber) {
           if (issue_number && issue_number !== artifactInputs.issueNumber) {
@@ -237,10 +249,10 @@ export async function extractInputs(
       payload.workflow_run.event == "workflow_dispatch"
     ) {
       // These artifacts can be trusted because these event types run workflows from the default branch.
-      const artifactInputs = await extractWorkflowRunArtifactInputs({
+      const artifactInputs = await getWorkflowRunArtifactInputs({
         github,
         core,
-        repository: payload.workflow_run.repository,
+        ...getRepositoryInfo(payload.workflow_run.repository),
         runId: payload.workflow_run.id,
       });
       head_sha = artifactInputs.headSha;
@@ -303,19 +315,28 @@ export async function extractInputs(
   return inputs;
 }
 
-async function extractWorkflowRunArtifactInputs({
+/**
+ * Reads the `head-sha=<sha>` and `issue-number=<n>` artifact names of a workflow run.
+ * Only call this for runs whose artifacts come from trusted code (see `extractInputs`).
+ * @returns `headSha` ("" if absent) and `issueNumber` (NaN if absent or invalid).
+ * @throws If the artifacts hold an invalid or conflicting head SHA, or conflicting PR numbers.
+ */
+export async function getWorkflowRunArtifactInputs({
   github,
   core,
-  repository,
+  owner,
+  repo,
   runId,
 }: {
   github: GitHub;
   core: Core;
-  repository: Parameters<typeof getRepositoryInfo>[0];
+  owner: string;
+  repo: string;
   runId: number;
 }): Promise<{ headSha: string; issueNumber: number }> {
   const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
-    ...getRepositoryInfo(repository),
+    owner,
+    repo,
     run_id: runId,
     per_page: PER_PAGE_MAX,
   });
@@ -324,6 +345,11 @@ async function extractWorkflowRunArtifactInputs({
   return parseWorkflowRunArtifactInputs(artifactNames, core);
 }
 
+/**
+ * Parses `head-sha=<sha>` and `issue-number=<n>` from artifact names; other names are ignored.
+ * @returns `headSha` ("" if absent) and `issueNumber` (NaN if absent or invalid).
+ * @throws If a head SHA is invalid, or two head SHAs or two PR numbers conflict.
+ */
 export function parseWorkflowRunArtifactInputs(
   artifactNames: string[],
   core: Core,
@@ -347,6 +373,7 @@ export function parseWorkflowRunArtifactInputs(
       }
       headSha = value;
     } else if (key === "issue-number") {
+      // Stricter than parseInt, which would accept "12abc".
       const parsedValue = /^[1-9]\d*$/.test(value) ? Number(value) : NaN;
       if (Number.isSafeInteger(parsedValue)) {
         if (Number.isSafeInteger(issueNumber) && issueNumber !== parsedValue) {

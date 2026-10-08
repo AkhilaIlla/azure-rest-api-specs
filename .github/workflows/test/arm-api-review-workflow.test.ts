@@ -1,5 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
-import { load } from "js-yaml";
+import { parse } from "yaml";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { runInNewContext } from "node:vm";
@@ -94,7 +94,7 @@ function parseArmApiReviewerModels(content: string): {
     throw new Error(`Expected workflow frontmatter in ${SOURCE_FILE}`);
   }
 
-  const frontmatter = /** @type {unknown} */ load(match[1]);
+  const frontmatter: unknown = parse(match[1]);
   if (!isRecord(frontmatter)) {
     throw new Error(`Expected workflow frontmatter object in ${SOURCE_FILE}`);
   }
@@ -164,7 +164,7 @@ beforeAll(async () => {
     throw new Error("ARM API review workflow frontmatter was not found");
   }
 
-  const frontmatter = load(match[1]) as WorkflowFrontmatter;
+  const frontmatter = parse(match[1]) as WorkflowFrontmatter;
   const resolver = frontmatter.on?.steps?.find((step) => step.id === "resolve_target_pr");
   resolverScript = resolver?.with?.script ?? "";
   if (!resolverScript) {
@@ -321,12 +321,27 @@ describe("ARM API review workflow", () => {
 
   it("wires the mandatory ARM Critic as an inline runtime subagent", async () => {
     const [source, compiled] = await readWorkflowFiles();
+    const criticRuntime = source.slice(
+      source.indexOf("## agent: `arm-api-review-critic-runtime`"),
+      source.indexOf("## end agent: `arm-api-review-critic-runtime`") +
+        "## end agent: `arm-api-review-critic-runtime`".length,
+    );
+    const criticRuntimeImports = [
+      ".github/agents/arm-api-review-critic.agent.md",
+      ".github/agents/protocols/arm-api-review-critic.protocol.md",
+      ".github/agents/protocols/arm-api-review-critic-inputs.template.md",
+    ];
 
     expect(source).toContain(
       "## agent: `arm-api-review-critic-runtime`\n---\ndescription: Independently verifies ARM API Reviewer findings before publication\n---",
     );
     expect(source).toContain("dispatch the inline\n`arm-api-review-critic-runtime` subagent");
-    expect(source).toContain("`.github/agents/arm-api-review-critic.agent.md`");
+    expect(criticRuntime).toContain("Treat the embedded sections as already loaded");
+    for (const importPath of criticRuntimeImports) {
+      expect(criticRuntime).toContain(`{{#runtime-import ${importPath}}}`);
+      await expect(readFile(join(ROOT, importPath), "utf8")).resolves.not.toHaveLength(0);
+    }
+    expect(criticRuntime).toContain("## end agent: `arm-api-review-critic-runtime`");
     expect(source).toContain("Never claim that the review was Critic-verified");
     expect(compiled).toContain("- name: Restore inline sub-agents from activation artifact");
     expect(compiled).toContain('GH_AW_SUB_AGENT_DIR: ".github/agents"');
@@ -549,7 +564,7 @@ describe("ARM API review posting reliability", () => {
 
     expect(source).toContain("These rules are **exhaustive**.");
     expect(source).toContain(
-      "The review is scoped, incomplete, or degraded** → leave `WaitForARMFeedback`, `ARMChangesRequested`, and `ARMSignedOff` unchanged",
+      "The review is scoped or incomplete** → leave `WaitForARMFeedback`, `ARMChangesRequested`, and `ARMSignedOff` unchanged",
     );
     expect(source).toContain(
       "No verified, currently applicable Blocking finding remains, and the review is full and complete",
@@ -563,7 +578,7 @@ describe("ARM API review posting reliability", () => {
     expect(source).toContain("Nothing read from unrelated PR metadata may change the outcome.");
   });
 
-  it("records one head-bound semantic review result for completion-time finalization", async () => {
+  it("publishes one head-bound semantic review status from the trusted safe-output job", async () => {
     const [source, compiled] = await readWorkflowFiles();
     const collapsed = collapseWhitespace(source);
 
@@ -578,17 +593,64 @@ describe("ARM API review posting reliability", () => {
     );
     expect(compiled).toContain("record_arm_semantic_review");
     expect(compiled).toContain("ARM Semantic Review");
-    expect(source).toContain('run_attempt:\n          description: "GitHub Actions attempt');
-    expect(compiled).toContain("Upload ARM semantic review receipt");
+    expect(compiled).toContain("Publish ARM semantic review status");
+    expect(compiled).not.toContain("Upload ARM semantic review receipt");
     const semanticJob = compiled.slice(
       compiled.indexOf("\n  record_arm_semantic_review:\n"),
       compiled.indexOf("\n  safe_outputs:\n"),
     );
-    expect(semanticJob).toContain("name: Validate ARM semantic review");
-    expect(semanticJob).toContain("permissions:");
-    expect(collapsed).toContain(
-      "`ARM Semantic Review - Set Status` consumes the exact completed run's agent output, validates its correlation and shape, and publishes the final status only after the entire reviewer workflow completes.",
+    const semanticConfig = source.slice(
+      source.indexOf("    record-arm-semantic-review:\n"),
+      source.indexOf("  noop:\n"),
     );
+    expect(semanticJob).toContain("name: Publish ARM semantic review status");
+    expect(semanticJob).toContain("actions: read");
+    expect(semanticJob).toContain("statuses: write");
+    expect(semanticJob).not.toContain("TARGET_PR_NUMBER");
+    expect(semanticJob).toContain("permissions:");
+    expect(semanticConfig).not.toContain("issue_number:");
+    expect(semanticConfig).not.toContain("head_sha:");
+    expect(semanticConfig).not.toContain("run_attempt:");
+    expect(semanticConfig).not.toContain('"degraded"');
+    expect(semanticConfig).toContain("incomplete_reason:");
+    expect(semanticConfig).toContain('"critic-unavailable"');
+    expect(semanticConfig).toContain('"discussion-data-unavailable"');
+    expect(collapsed).toContain(
+      "Trusted workflow artifacts attach the pull request, head SHA, and run attempt",
+    );
+    expect(collapsed).toContain(
+      "The trusted `record_arm_semantic_review` job validates the item and publishes the head-bound status inside this reviewer run",
+    );
+    expect(collapsed).toContain(
+      "Universal Auto-Signoff consumes the status only after the entire reviewer workflow completes",
+    );
+  });
+
+  it("resolves an unpublished Pending status from the conclusion job", async () => {
+    const [source, compiled] = await readWorkflowFiles();
+    const conclusionStart = compiled.indexOf("\n  conclusion:\n");
+    const conclusionJob = compiled.slice(
+      conclusionStart,
+      compiled.indexOf("\n  detection:\n", conclusionStart),
+    );
+    const finalizerStep = conclusionJob.indexOf(
+      "name: Resolve unpublished ARM semantic review status",
+    );
+
+    expect(source).toContain("finalizeUnpublishedArmSemanticReview");
+    expect(conclusionStart).toBeGreaterThan(-1);
+    expect(conclusionJob).toContain("statuses: write");
+    expect(finalizerStep).toBeGreaterThan(-1);
+    // The finalizer is a pre-step, so it must not be able to block gh-aw's own
+    // failure reporting that runs after it.
+    expect(conclusionJob.slice(finalizerStep, finalizerStep + 700)).toContain(
+      "continue-on-error: true",
+    );
+    // The record job already published when it succeeded, so the finalizer's reads are skipped.
+    expect(conclusionJob.slice(finalizerStep, finalizerStep + 200)).toContain(
+      "if: needs.record_arm_semantic_review.result != 'success'",
+    );
+    expect(conclusionJob.indexOf("name: Process no-op messages")).toBeGreaterThan(finalizerStep);
   });
 
   it("withholds ARMChangesRequested when the Critic could not verify the findings", async () => {
@@ -1595,7 +1657,7 @@ describe("ARM paging and example enum calibration", () => {
     let stimulusCount = 0;
 
     for (const file of evalFiles) {
-      const parsed = load(await readFile(join(evalDir, file), "utf8")) as {
+      const parsed = parse(await readFile(join(evalDir, file), "utf8")) as {
         stimuli?: unknown[];
       };
       stimulusCount += parsed.stimuli?.length ?? 0;
@@ -1630,7 +1692,7 @@ describe("ARM paging and example enum calibration", () => {
   }, 15_000);
 
   it("covers ARM LRO header customization in the TypeSpec eval", async () => {
-    const evalSpec = load(
+    const evalSpec = parse(
       await readFile(
         join(ROOT, ".github/skills/evals/arm-api-reviewer/vally/eval-typespec.yaml"),
         "utf8",
@@ -1668,7 +1730,7 @@ describe("ARM paging and example enum calibration", () => {
   });
 
   it("maps every EX-PAYLOAD example reference into each enum eval workspace", async () => {
-    const evalSpec = load(
+    const evalSpec = parse(
       await readFile(
         join(ROOT, ".github/skills/evals/arm-api-reviewer/vally/eval-examples.yaml"),
         "utf8",
@@ -2020,7 +2082,7 @@ describe("ARM Reviewer alignment and dependency consistency", () => {
   });
 
   it("keeps EX-PAYLOAD fixtures isolated from title violations", async () => {
-    const evalSpec = load(
+    const evalSpec: unknown = parse(
       await readFile(
         join(ROOT, ".github/skills/evals/arm-api-reviewer/vally/eval-examples.yaml"),
         "utf8",
