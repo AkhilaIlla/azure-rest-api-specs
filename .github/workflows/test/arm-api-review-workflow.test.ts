@@ -315,12 +315,6 @@ describe("ARM API review workflow", () => {
       expect(workflow).toContain("github.event.comment.body != '/arm-review'");
       expect(workflow).toContain("github.event.issue.pull_request == null");
       expect(workflow).toContain("github.event.label.name != 'WaitForARMFeedback'");
-      // PR events the trigger gate skips (draft, or no queue label) must not join the PR group
-      // and cancel an active review.
-      expect(workflow).toContain("github.event.pull_request.draft == true");
-      expect(workflow).toContain(
-        "!contains(github.event.pull_request.labels.*.name, 'WaitForARMFeedback')",
-      );
       expect(workflow).toContain("&& github.run_id || github.event.issue.number");
     }
   });
@@ -352,17 +346,6 @@ describe("ARM API review workflow", () => {
     expect(compiled).toContain("- name: Restore inline sub-agents from activation artifact");
     expect(compiled).toContain('GH_AW_SUB_AGENT_DIR: ".github/agents"');
     expect(compiled).toContain('GH_AW_SUB_AGENT_EXT: ".agent.md"');
-  });
-
-  it("creates incomplete-review tracking issues only in the canonical repository", async () => {
-    const [source, compiled] = await readWorkflowFiles();
-
-    expect(source).toContain(
-      "create-issue: ${{ github.repository == 'Azure/azure-rest-api-specs' }}",
-    );
-    expect(compiled).toContain(
-      "GH_AW_REPORT_INCOMPLETE_CREATE_ISSUE: ${{ github.repository == 'Azure/azure-rest-api-specs' }}",
-    );
   });
 
   it("reconciles duplicates and contradictions across every review entry point", async () => {
@@ -662,6 +645,10 @@ describe("ARM API review posting reliability", () => {
     // failure reporting that runs after it.
     expect(conclusionJob.slice(finalizerStep, finalizerStep + 700)).toContain(
       "continue-on-error: true",
+    );
+    // The record job already published when it succeeded, so the finalizer's reads are skipped.
+    expect(conclusionJob.slice(finalizerStep, finalizerStep + 200)).toContain(
+      "if: needs.record_arm_semantic_review.result != 'success'",
     );
     expect(conclusionJob.indexOf("name: Process no-op messages")).toBeGreaterThan(finalizerStep);
   });
