@@ -479,7 +479,7 @@
         "alias": {
           "type": "string",
           "description": "The alias of the employee.",
-          "pattern": "^[^<>]{1,64}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
           "maxLength": 64
         },
         "connectionString": {
