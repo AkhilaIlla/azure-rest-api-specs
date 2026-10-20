@@ -12,7 +12,7 @@
       "body": {
         "properties": {
           "age": 30,
-          "city": "gydhnntudughbmxlkyzrskcdkotrxn",
+          "city": "e2e-blocking-v2-city",
           "profile": "ms",
           "provisioningState": "Succeeded"
         },
