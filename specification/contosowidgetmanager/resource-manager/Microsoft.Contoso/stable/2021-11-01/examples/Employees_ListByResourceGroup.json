@@ -13,7 +13,7 @@
           {
             "properties": {
               "age": 30,
-              "city": "e2e-blocking-fixed-city",
+              "city": "p0-push-after-signoff-city",
               "profile": "ms",
               "provisioningState": "Succeeded"
             },
