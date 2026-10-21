@@ -1,8 +1,18 @@
-# Pilot workflow for universal ARM auto-signoff. Once enforcement is enabled, rename this workflow
-# to "ARM Auto SignOff" and remove the legacy workflow.
+# Universal ARM auto-signoff. Owns ARMSignedOff only while ARMAutoSignedOff marks it as
+# automation-owned; ARMSignedOff without the marker is a human approval and is never changed.
 name: ARM Universal Auto SignOff
 
 on: # zizmor: ignore[dangerous-triggers] Fork PR updates require this; only base/default-branch code runs.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number from the trusted reviewer correlation"
+        required: true
+        type: string
+      head_sha:
+        description: "Reviewed PR head SHA"
+        required: true
+        type: string
   # Must run on pull_request_target instead of pull_request, since the latter cannot trigger on
   # labels from bot accounts in fork PRs. pull_request_target is also more similar to the other
   # trigger "workflow_run" -- they are both privileged and run in the target branch and repo --
@@ -27,12 +37,12 @@ on: # zizmor: ignore[dangerous-triggers] Fork PR updates require this; only base
 permissions:
   # actions.listWorkflowRunsForRepo
   # actions.listWorkflowRunArtifacts
-  actions: read
+  actions: write # read correlation artifacts and dispatch Update Labels
   # default
   contents: read
   # issues.listLabelsOnIssue
   issues: read
-  # issues.listLabelsOnIssue
+  # pulls.get, issues.listLabelsOnIssue
   pull-requests: read
   # repos.getCombinedStatusForRef
   statuses: read
@@ -42,6 +52,7 @@ jobs:
     name: ARM Universal Auto SignOff
     # Ignore skipped/cancelled parents. For open PRs, only handle changes that affect eligibility.
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion != 'skipped' &&
        github.event.workflow_run.conclusion != 'cancelled') ||
@@ -53,9 +64,10 @@ jobs:
         github.event.action == 'edited' ||
         ((github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
          (github.event.label.name == 'Approved-Suppression' ||
-          github.event.label.name == 'ARMAutoSignedOff-Test' ||
+          github.event.label.name == 'ARMAutoSignedOff' ||
           github.event.label.name == 'ARMManualSignoffRequired' ||
           github.event.label.name == 'ARMReview' ||
+          github.event.label.name == 'ARMSignedOff' ||
           github.event.label.name == 'NotReadyForARMReview' ||
           github.event.label.name == 'SuppressionReviewRequired'))))
 
@@ -86,13 +98,35 @@ jobs:
               await import('${{ github.workspace }}/.github/workflows/src/arm-auto-signoff/arm-universal-auto-signoff.ts');
             return await getLabelAction({ github, context, core });
 
-      # Pilot mode owns only the test label; it never changes ARMSignedOff.
-      - if: fromJson(steps.get-label-action.outputs.result).labelActions['ARMAutoSignedOff-Test'] != 'none'
-        name: Upload artifact for ARMAutoSignedOff-Test label
+      # Update Labels applies these. The action is explicit: 'add' | 'remove' | 'none'.
+      - if: fromJson(steps.get-label-action.outputs.result).labelActions['ARMSignedOff'] != 'none'
+        name: Upload artifact for ARMSignedOff label
         uses: ./.github/actions/add-label-artifact
         with:
-          name: "ARMAutoSignedOff-Test"
-          value: "${{ fromJson(steps.get-label-action.outputs.result).labelActions['ARMAutoSignedOff-Test'] == 'add' }}"
+          name: "ARMSignedOff"
+          value: "${{ fromJson(steps.get-label-action.outputs.result).labelActions['ARMSignedOff'] == 'add' }}"
+
+      - if: fromJson(steps.get-label-action.outputs.result).labelActions['ARMAutoSignedOff'] != 'none'
+        name: Upload artifact for ARMAutoSignedOff label
+        uses: ./.github/actions/add-label-artifact
+        with:
+          name: "ARMAutoSignedOff"
+          value: "${{ fromJson(steps.get-label-action.outputs.result).labelActions['ARMAutoSignedOff'] == 'add' }}"
+
+      # Legacy markers are only ever removed.
+      - if: fromJson(steps.get-label-action.outputs.result).labelActions['ARMAutoSignedOff-IncrementalTSP'] == 'remove'
+        name: Upload artifact for ARMAutoSignedOff-IncrementalTSP label
+        uses: ./.github/actions/add-label-artifact
+        with:
+          name: "ARMAutoSignedOff-IncrementalTSP"
+          value: "false"
+
+      - if: fromJson(steps.get-label-action.outputs.result).labelActions['ARMAutoSignedOff-Trivial'] == 'remove'
+        name: Upload artifact for ARMAutoSignedOff-Trivial label
+        uses: ./.github/actions/add-label-artifact
+        with:
+          name: "ARMAutoSignedOff-Trivial"
+          value: "false"
 
       - if: fromJson(steps.get-label-action.outputs.result).labelActions['ARMManualSignoffRequired'] == 'add'
         name: Upload artifact for ARMManualSignoffRequired label
@@ -104,7 +138,6 @@ jobs:
       # The label updater uses these trusted artifacts to associate this workflow run with its PR.
       - if: |
           always() &&
-          github.event_name == 'workflow_run' &&
           fromJson(steps.get-label-action.outputs.result).headSha
         name: Upload artifact with head SHA
         uses: ./.github/actions/add-empty-artifact
@@ -114,10 +147,25 @@ jobs:
 
       - if: |
           always() &&
-          github.event_name == 'workflow_run' &&
           fromJson(steps.get-label-action.outputs.result).issueNumber > 0
         name: Upload artifact with issue number
         uses: ./.github/actions/add-empty-artifact
         with:
           name: "issue-number"
           value: "${{ fromJson(steps.get-label-action.outputs.result).issueNumber }}"
+
+      - name: Dispatch Update Labels
+        if: |
+          contains(toJson(fromJson(steps.get-label-action.outputs.result).labelActions), '"add"') ||
+          contains(toJson(fromJson(steps.get-label-action.outputs.result).labelActions), '"remove"')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const ref = context.payload.repository?.default_branch;
+            if (!ref) throw new Error("Update Labels dispatch requires the default branch");
+            await github.rest.actions.createWorkflowDispatch({
+              ...context.repo,
+              workflow_id: "update-labels.yaml",
+              ref,
+              inputs: { source_run_id: String(context.runId) },
+            });
