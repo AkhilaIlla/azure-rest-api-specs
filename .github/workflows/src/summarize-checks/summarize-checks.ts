@@ -29,6 +29,7 @@ import { execFile } from "../../../shared/src/exec.ts";
 import { CheckConclusion, PER_PAGE_MAX } from "../../../shared/src/github.ts";
 import { intersect } from "../../../shared/src/set.ts";
 import { byDate, invert } from "../../../shared/src/sort.ts";
+import { parseSignoffDispatchInputs } from "../arm-auto-signoff/arm-signoff-dispatch.ts";
 import { commentOrUpdate } from "../comment.ts";
 import { extractInputs } from "../context.ts";
 import { TYPESPEC_SUPPRESSIONS_APPROVED_LABEL } from "../label.ts";
@@ -276,7 +277,17 @@ export default async function summarizeChecks({
   context,
   core,
 }: GitHubScriptArgs): Promise<void> {
-  const { owner, repo, issue_number, head_sha } = await extractInputs(github, context, core);
+  const extracted = await extractInputs(github, context, core);
+  const { owner, repo } = extracted;
+  let { issue_number, head_sha } = extracted;
+
+  // Dispatched by Update Labels, which has no PR payload. The inputs only identify the PR; a
+  // head that no longer matches is skipped as stale by summarizeChecksImpl.
+  if (context.eventName === "workflow_dispatch") {
+    ({ issue_number, head_sha } = parseSignoffDispatchInputs(
+      (context.payload as WebhookEvent<"workflow-dispatch">).inputs,
+    ));
+  }
 
   if (!issue_number) {
     core.warning(`No issue number found for this event. Exiting summarize-checks.js early.`);
@@ -355,7 +366,16 @@ export async function summarizeChecksImpl(
   await core.summary.write();
   core.setOutput("summary", process.env.GITHUB_STEP_SUMMARY);
 
-  let labelNames = await getExistingLabels(github, owner, repo, issue_number);
+  const { data: pull } = await github.rest.pulls.get({
+    owner,
+    repo,
+    pull_number: issue_number,
+  });
+  if (pull.state !== "open" || pull.head.sha !== head_sha) {
+    core.info("Skipping summary for a stale head or closed PR");
+    return;
+  }
+  let labelNames = pull.labels.map((label) => label.name);
 
   const [requiredCheckRuns, fyiCheckRuns, impactAssessment] = await getCheckRunTuple(
     github,
@@ -370,6 +390,7 @@ export async function summarizeChecksImpl(
   outputRunDetails(core, requiredCheckRuns, fyiCheckRuns);
 
   if (impactAssessment) {
+    impactAssessment.isDraft = pull.draft ?? false;
     core.info(`ImpactAssessment: ${JSON.stringify(impactAssessment)}`);
     targetBranch = impactAssessment.targetBranch;
   } else {
@@ -380,6 +401,22 @@ export async function summarizeChecksImpl(
   }
 
   const labelContext = updateLabels(labelNames, impactAssessment);
+
+  const { data: currentPull } = await github.rest.pulls.get({
+    owner,
+    repo,
+    pull_number: issue_number,
+  });
+  if (
+    currentPull.state !== "open" ||
+    currentPull.head.sha !== head_sha ||
+    currentPull.draft !== pull.draft ||
+    JSON.stringify(currentPull.labels.map((label) => label.name).sort()) !==
+      JSON.stringify([...labelNames].sort())
+  ) {
+    core.info("PR changed during summary evaluation; not applying stale label actions");
+    return;
+  }
 
   core.info(
     `Summarize checks label actions against ${owner}/${repo}#${issue_number}: \n` +
@@ -457,6 +494,11 @@ export async function summarizeChecksImpl(
   core.summary.addHeading("Automated Checks Met", 2);
   core.summary.addCodeBlock(JSON.stringify(automatedChecksMet, null, 2));
   await core.summary.write();
+
+  core.setOutput(
+    "arm_review_ready",
+    impactAssessment !== undefined && !pull.draft && labelNames.includes("WaitForARMFeedback"),
+  );
 }
 
 /**
